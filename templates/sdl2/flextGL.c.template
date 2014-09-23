@@ -1,0 +1,82 @@
+@require(passthru, functions, enums, options, version, extensions, types, raw_enums)
+/* WARNING: This file was automatically generated */
+/* Do not edit. */
+
+#include "flextGL.h"
+#include <SDL.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void flextLoadOpenGLFunctions(void);
+
+int flextInit(void)
+{
+    @if version.int_value() >= 32 and not version.profile == 'core':
+    GLint profile;
+    @end
+
+    flextLoadOpenGLFunctions();
+
+    @if version.int_value() >= 32 and not version.profile == 'core':
+
+    glGetIntegerv(GL_CONTEXT_PROFILE_MASK, &profile);
+
+    if ((profile & GL_CONTEXT_COMPATIBILITY_PROFILE_BIT) == 0) {
+        fprintf(stderr, "Error: This application requires a compatibility profile\n");
+        return GL_FALSE;
+    }
+    @end
+
+    @for extension,required in extensions:
+    @if required:
+    if (!SDL_GL_ExtensionSupported("GL_@extension")) {
+        fprintf(stderr, "Error: OpenGL extension @extension not supported.\n");
+        fprintf(stderr, "       Try updating your graphics driver.\n");
+        return GL_FALSE;
+    }
+    @else:
+    if (SDL_GL_ExtensionSupported("GL_@extension")) {
+        FLEXT_@extension = GL_TRUE;
+    }
+    @end
+
+    @end
+
+    return GL_TRUE;
+}
+
+void flextLoadOpenGLFunctions(void)
+{
+    @for category,funcs in functions:
+    @if category not in ['VERSION_1_0', 'VERSION_1_1','VERSION_1_0_DEPRECATED', 'VERSION_1_1_DEPRECATED']:
+    /* GL_@category */
+
+    @for f in funcs:
+    glpf@f.name = (PFNGL@f.name.upper()_PROC*) SDL_GL_GetProcAddress("gl@f.name");
+    @end
+
+    @end
+    @end
+}
+
+@for extension,required in extensions:
+int FLEXT_@extension = GL_FALSE;
+@end
+
+@for category,funcs in functions:
+@if len(funcs) > 0 and category not in ['VERSION_1_0', 'VERSION_1_1','VERSION_1_0_DEPRECATED', 'VERSION_1_1_DEPRECATED' ]:
+/* GL_@category */
+
+@for f in funcs:
+PFNGL@f.name.upper()_PROC* glpf@f.name = NULL;
+@end
+
+@end
+@end
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
+

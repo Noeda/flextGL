@@ -1,0 +1,220 @@
+@require(passthru, functions, enums, options, version, extensions, types, raw_enums)
+{-# LANGUAGE CPP, ForeignFunctionInterface, EmptyDataDecls #-}
+#ifdef __GLASGOW_HASKELL__
+{-# LANGUAGE DeriveDataTypeable, StandaloneDeriving #-}
+#endif
+-- WARNING: This file was automatically generated
+-- Do not edit.
+
+@(
+   def haskellize(typ):
+    out = p.replace("const ", "").replace("const", "")
+    ptr_depth = p.count("*")
+    out = out.replace("*", "").strip()
+    if out == "void":
+        if ptr_depth == 0:
+            out = "()"
+        else:
+            out = ""
+    return "Ptr ("*ptr_depth + out + ")"*ptr_depth
+)
+
+@(
+   def processenum(enum):
+    if enum.endswith("ull"): return enum[:-3]
+    if enum.endswith("u"): return enum[:-1]
+    return enum
+ )
+
+@(
+   def lowercasifygl(name):
+    if name.startswith("GL"):
+        return "gl" + name[2:]
+    else:
+        return name
+ )
+
+module FlextGL
+    ( flextInit
+    , FlextInitResult(..)
+@for extension,required in extensions:
+    , has_GL_@extension
+@end
+@for cats,funcs in functions:
+@if cats not in ['VERSION_1_0', 'VERSION_1_1','VERSION_1_0_DEPRECATED', 'VERSION_1_1_DEPRECATED']:
+@for f in funcs:
+    , gl@f.name
+@end
+@end
+@end
+@for e in raw_enums:
+    , @lowercasifygl(e)
+@end
+    )
+    where
+
+import Data.Typeable
+import Data.Bits
+import Data.IORef
+import Data.Int
+import Data.Word
+import System.IO.Unsafe
+import Control.Applicative
+import Control.Exception
+import Control.Monad
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Except
+import Foreign.C.Types
+import Foreign.Marshal.Alloc
+import Foreign.Storable
+import Foreign.Ptr
+
+#ifdef mingw32_HOST_OS
+#define APIENTRY stdcall
+#else
+#define APIENTRY
+#endif
+
+-- | Shortcut to `glGetIntegerv` when you query only one integer.
+gi :: GLenum -> IO GLuint
+gi x = alloca $ \get_ptr -> glGetIntegerv x (castPtr get_ptr) *>
+                            peek get_ptr
+
+data FlextInitResult = Failure { why :: String }
+                     | Success
+                     deriving ( Eq, Ord, Show, Read )
+
+#ifdef __GLASGOW_HASKELL__
+deriving instance Typeable FlextInitResult
+#endif
+
+proc :: Either a a -> a
+proc (Left x) = x
+proc (Right x) = x
+
+-- | Initializes OpenGL entry points in the current OpenGL context.
+flextInit :: (String -> IO (Ptr ()))
+          -> (String -> IO Bool)
+          -> IO FlextInitResult
+flextInit get_proc_address is_supported = fmap proc $ runExceptT $ do
+    @for category,funcs in functions:
+    @if category not in ['VERSION_1_0', 'VERSION_1_1','VERSION_1_0_DEPRECATED', 'VERSION_1_1_DEPRECATED']:
+    -- GL_@category
+
+    @for f in funcs:
+    when True $ liftIO $ do
+        addr <- castPtrToFunPtr . castPtr <$> get_proc_address "gl@f.name"
+        writeIORef glref@f.name $ gldyn@f.name addr
+    @end
+
+    @end
+    @end
+
+    @if version.int_value() >= 32 and not version.profile == 'core':
+    profile <- liftIO $ gi gl_CONTEXT_PROFILE_MASK
+    when (profile .&. gl_CONTEXT_COMPATIBILITY_PROFILE_BIT == 0) $
+        throwE $ Failure "This application requires a compatibility profile."
+    @end
+
+    @for extension,required in extensions:
+    when True $ do
+        result <- liftIO $ is_supported "GL_@extension"
+    @if required:
+        unless result $ do
+            throwE $ Failure $ "Missing OpenGL extension: " ++ "GL_@extension"
+    @else:
+        liftIO $ writeIORef hasref_GL_@extension True
+    @end
+    @end
+
+    return Success
+
+@for extension,required in extensions:
+has_GL_@extension :: IO Bool
+has_GL_@extension = readIORef hasref_GL_@extension
+{-# INLINE has_GL_@extension #-}
+hasref_GL_@extension :: IORef Bool
+@if required:
+hasref_GL_@extension = unsafePerformIO $ newIORef True
+@else:
+hasref_GL_@extension = unsafePerformIO $ newIORef False
+@end
+{-# NOINLINE hasref_GL_@extension #-}
+@end
+
+@for cat,funcs in functions:
+
+-- GL_@cat
+
+@if cat not in ['VERSION_1_0', 'VERSION_1_1','VERSION_1_0_DEPRECATED', 'VERSION_1_1_DEPRECATED']:
+@for f in funcs:
+type Funtype@f.name =
+@for t,p in f.params:
+    @haskellize(p) ->
+@end
+    IO ( @haskellize(f.returntype) )
+foreign import ccall APIENTRY unsafe "dynamic"
+    gldyn@f.name :: FunPtr Funtype@f.name -> Funtype@f.name
+glref@f.name :: IORef Funtype@f.name
+glref@f.name = unsafePerformIO $ newIORef $ error "No function retrieved."
+{-# NOINLINE glref@f.name #-}
+gl@f.name :: Funtype@f.name
+gl@f.name = unsafePerformIO $ readIORef glref@f.name
+{-# INLINE gl@f.name #-}
+@end
+@end
+@end
+
+@for e in raw_enums:
+@lowercasifygl(e) :: GLenum
+@lowercasifygl(e) = @processenum(raw_enums[e])
+@end
+
+data GLsyncob
+type GLsync = Ptr GLsyncob
+
+type GLhalf = Word16
+type GLhalfARB = Word16
+type GLintptrARB = CPtrdiff
+type GLsizeiptrARGB = CPtrdiff
+type GLDEBUGPROC =
+    FunPtr (GLenum -> GLenum -> GLuint -> GLenum -> GLsizei -> Ptr GLchar -> Ptr () -> IO ())
+type GLDEBUGPROCARB = GLDEBUGPROC
+type GLDEBUGPROCKHR = GLDEBUGPROC
+type GLDEBUGPROCAMD =
+    FunPtr (GLuint -> GLenum -> GLenum -> GLsizei -> Ptr GLchar -> Ptr () -> IO ())
+type GLbyte = CChar
+type GLubyte = CUChar
+type GLfloat = CFloat
+type GLclampf = CFloat
+type GLfixed = Int32
+type GLint64 = Int64
+type GLuint64 = Word64
+type GLint64EXT = Int64
+type GLuint64EXT = Word64
+type GLintptr = CIntPtr
+type GLsizeiptr = CSize
+type GLhalfNV = CUShort
+type GLvdpauSurfaceNV = GLintptr
+type GLenum = CUInt
+type GLboolean = CUChar
+type GLvoid = ()
+type GLbitfield = CUInt
+type GLshort = CShort
+type GLint = CInt
+type GLclampx = CInt
+type GLushort = CUShort
+type GLuint = CUInt
+type GLsizei = CInt
+type GLdouble = CDouble
+type GLclampd = CDouble
+data GLeglImageOESob
+type GLeglImageOES = Ptr GLeglImageOESob
+type GLchar = CChar
+type GLcharARB = CChar
+#ifdef __APPLE__
+type GLhandleARB = Ptr ()
+#else
+type GLhandleARB = CUInt
+#endif
+
