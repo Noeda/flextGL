@@ -8,8 +8,8 @@
 
 @(
    def haskellize(typ):
-    out = p.replace("const ", "").replace("const", "")
-    ptr_depth = p.count("*")
+    out = typ.replace("const ", "").replace("const", "")
+    ptr_depth = typ.count("*")
     out = out.replace("*", "").strip()
     if out == "void":
         if ptr_depth == 0:
@@ -41,20 +41,57 @@ module FlextGL
     , has_GL_@extension
 @end
 @for cats,funcs in functions:
-@if cats not in ['VERSION_1_0', 'VERSION_1_1','VERSION_1_0_DEPRECATED', 'VERSION_1_1_DEPRECATED']:
 @for f in funcs:
     , gl@f.name
-@end
 @end
 @end
 @for e in raw_enums:
     , @lowercasifygl(e)
 @end
+    , GLsync
+    , GLsyncob()
+    , GLhalf
+    , GLhalfARB
+    , GLintptrARB
+    , GLsizeiptrARB
+    , GLDEBUGPROC
+    , GLDEBUGPROCARB
+    , GLDEBUGPROCKHR
+    , GLDEBUGPROCAMD
+    , GLbyte
+    , GLubyte
+    , GLfloat
+    , GLclampf
+    , GLfixed
+    , GLint64
+    , GLuint64
+    , GLint64EXT
+    , GLuint64EXT
+    , GLintptr
+    , GLsizeiptr
+    , GLhalfNV
+    , GLvdpauSurfaceNV
+    , GLenum
+    , GLboolean
+    , GLvoid
+    , GLbitfield
+    , GLshort
+    , GLint
+    , GLclampx
+    , GLushort
+    , GLuint
+    , GLsizei
+    , GLdouble
+    , GLclampd
+    , GLeglImageOESob()
+    , GLeglImageOES
+    , GLchar
+    , GLcharARB
+    , GLhandleARB
     )
     where
 
 import Data.Typeable
-import Data.Bits
 import Data.IORef
 import Data.Int
 import Data.Word
@@ -65,8 +102,6 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Except
 import Foreign.C.Types
-import Foreign.Marshal.Alloc
-import Foreign.Storable
 import Foreign.Ptr
 
 #ifdef mingw32_HOST_OS
@@ -75,17 +110,13 @@ import Foreign.Ptr
 #define APIENTRY
 #endif
 
--- | Shortcut to `glGetIntegerv` when you query only one integer.
-gi :: GLenum -> IO GLuint
-gi x = alloca $ \get_ptr -> glGetIntegerv x (castPtr get_ptr) *>
-                            peek get_ptr
-
 data FlextInitResult = Failure { why :: String }
                      | Success
                      deriving ( Eq, Ord, Show, Read )
 
 #ifdef __GLASGOW_HASKELL__
 deriving instance Typeable FlextInitResult
+instance Exception FlextInitResult
 #endif
 
 proc :: Either a a -> a
@@ -98,7 +129,6 @@ flextInit :: (String -> IO (Ptr ()))
           -> IO FlextInitResult
 flextInit get_proc_address is_supported = fmap proc $ runExceptT $ do
     @for category,funcs in functions:
-    @if category not in ['VERSION_1_0', 'VERSION_1_1','VERSION_1_0_DEPRECATED', 'VERSION_1_1_DEPRECATED']:
     -- GL_@category
 
     @for f in funcs:
@@ -107,7 +137,6 @@ flextInit get_proc_address is_supported = fmap proc $ runExceptT $ do
         writeIORef glref@f.name $ gldyn@f.name addr
     @end
 
-    @end
     @end
 
     @if version.int_value() >= 32 and not version.profile == 'core':
@@ -123,7 +152,7 @@ flextInit get_proc_address is_supported = fmap proc $ runExceptT $ do
         unless result $ do
             throwE $ Failure $ "Missing OpenGL extension: " ++ "GL_@extension"
     @else:
-        liftIO $ writeIORef hasref_GL_@extension True
+        liftIO $ writeIORef hasref_GL_@extension result
     @end
     @end
 
@@ -146,7 +175,6 @@ hasref_GL_@extension = unsafePerformIO $ newIORef False
 
 -- GL_@cat
 
-@if cat not in ['VERSION_1_0', 'VERSION_1_1','VERSION_1_0_DEPRECATED', 'VERSION_1_1_DEPRECATED']:
 @for f in funcs:
 type Funtype@f.name =
 @for t,p in f.params:
@@ -163,7 +191,6 @@ gl@f.name = unsafePerformIO $ readIORef glref@f.name
 {-# INLINE gl@f.name #-}
 @end
 @end
-@end
 
 @for e in raw_enums:
 @lowercasifygl(e) :: GLenum
@@ -176,7 +203,7 @@ type GLsync = Ptr GLsyncob
 type GLhalf = Word16
 type GLhalfARB = Word16
 type GLintptrARB = CPtrdiff
-type GLsizeiptrARGB = CPtrdiff
+type GLsizeiptrARB = CPtrdiff
 type GLDEBUGPROC =
     FunPtr (GLenum -> GLenum -> GLuint -> GLenum -> GLsizei -> Ptr GLchar -> Ptr () -> IO ())
 type GLDEBUGPROCARB = GLDEBUGPROC
