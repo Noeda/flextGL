@@ -108,6 +108,7 @@ import Foreign.Ptr
 #define APIENTRY stdcall
 #else
 #define APIENTRY
+import qualified System.Posix.DynamicLinker.ByteString as POSIX
 #endif
 
 data FlextInitResult = Failure { why :: String }
@@ -133,7 +134,15 @@ flextInit get_proc_address is_supported = fmap proc $ runExceptT $ do
 
     @for f in funcs:
     when True $ liftIO $ do
-        addr <- castPtrToFunPtr . castPtr <$> get_proc_address "gl@f.name"
+        addr' <- castPtrToFunPtr . castPtr <$> get_proc_address "gl@f.name"
+#ifndef mingw32_HOST_OS
+        addr <- if addr' == nullFunPtr
+          then catch (POSIX.dlsym POSIX.Default "gl@f.name")
+                     (\exc -> (exc :: SomeException) `seq` return nullFunPtr)
+          else return addr'
+#else
+        let addr = addr'
+#endif
         writeIORef glref@f.name $ gldyn@f.name addr
     @end
 
