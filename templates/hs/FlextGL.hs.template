@@ -102,6 +102,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Except
 import Foreign.C.Types
+import Foreign.C.String
 import Foreign.Ptr
 
 #ifdef mingw32_HOST_OS
@@ -124,11 +125,24 @@ proc :: Either a a -> a
 proc (Left x) = x
 proc (Right x) = x
 
+parseExtensionString :: String -> [String]
+parseExtensionString [] = []
+parseExtensionString str = rec str [] [] where
+    rec [] ext exts =
+        if null ext
+          then exts
+          else (reverse ext:exts)
+    rec (' ':rest) ext exts =
+        if null ext
+          then rec rest [] exts
+          else rec rest [] (reverse ext:exts)
+    rec (x:rest) ext exts =
+        rec rest (x:ext) exts
+
 -- | Initializes OpenGL entry points in the current OpenGL context.
 flextInit :: (String -> IO (Ptr ()))
-          -> (String -> IO Bool)
           -> IO FlextInitResult
-flextInit get_proc_address is_supported = fmap proc $ runExceptT $ do
+flextInit get_proc_address = fmap proc $ runExceptT $ do
     @for category,funcs in functions:
     -- GL_@category
 
@@ -154,9 +168,14 @@ flextInit get_proc_address is_supported = fmap proc $ runExceptT $ do
         throwE $ Failure "This application requires a compatibility profile."
     @end
 
+    -- This function should exist in every OpenGL
+    exts_raw <- liftIO $ castPtr `fmap` glGetString gl_EXTENSIONS
+    exts_cptr <- liftIO $ peekCString exts_raw
+    let exts = parseExtensionString exts_cptr
+
     @for extension,required in extensions:
     when True $ do
-        result <- liftIO $ is_supported "GL_@extension"
+        let result = elem "GL_@extension" exts
     @if required:
         unless result $ do
             throwE $ Failure $ "Missing OpenGL extension: " ++ "GL_@extension"
