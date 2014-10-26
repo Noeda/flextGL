@@ -41,14 +41,18 @@ module FlextGLReentrant
     ( flextInit
     , FlextInitResult(..)
     , NonExistentOpenGLFunction(..)
-    , FlextGL(..)
+    , FlextGL()
 @for e in raw_enums:
     , @lowercasifygl(e)
 @end
 @for cats,funcs in functions:
 @for f in funcs:
     , Funtype@f.name
+    , gl@f.name
 @end
+@end
+@for extension,required in extensions:
+    , has_GL_@extension
 @end
     , GLsync
     , GLsyncob()
@@ -118,8 +122,7 @@ flextGLCounter = unsafePerformIO $ newIORef 0
 {-# NOINLINE flextGLCounter #-}
 
 data FlextGL = FlextGL {
-    counter :: !Integer
-
+      counter :: !Integer
 @for extension,required in extensions:
     , has_GL_@extension :: !Bool
 @end
