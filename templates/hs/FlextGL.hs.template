@@ -104,6 +104,8 @@ import Control.Monad.Trans.Except
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Ptr
+import Foreign.Storable
+import Foreign.Marshal.Alloc
 
 #ifdef mingw32_HOST_OS
 #define APIENTRY stdcall
@@ -125,19 +127,24 @@ proc :: Either a a -> a
 proc (Left x) = x
 proc (Right x) = x
 
+parseVersion :: String -> (Int, Int, Maybe Int, String)
+parseVersion str =
+  let (ver, vendor) = split ' ' str
+      (major, _:rest1) = split '.' ver
+      (minor, rest2) = split '.' rest1
+      rev = case rest2 of
+        [] -> Nothing
+        ('.':t) -> Just $ read t
+  in (read major, read minor, rev, drop 1 vendor)
+
+  where split c [] = ([], [])
+        split c (h:t)
+          | h == c = ([], h:t)
+          | otherwise = let (left, right) = split c t
+                        in (h:left, right)
+
 parseExtensionString :: String -> [String]
-parseExtensionString [] = []
-parseExtensionString str = rec str [] [] where
-    rec [] ext exts =
-        if null ext
-          then exts
-          else (reverse ext:exts)
-    rec (' ':rest) ext exts =
-        if null ext
-          then rec rest [] exts
-          else rec rest [] (reverse ext:exts)
-    rec (x:rest) ext exts =
-        rec rest (x:ext) exts
+parseExtensionString = words
 
 -- | Initializes OpenGL entry points in the current OpenGL context.
 flextInit :: (String -> IO (Ptr ()))
@@ -168,10 +175,23 @@ flextInit get_proc_address = fmap proc $ runExceptT $ do
         throwE $ Failure "This application requires a compatibility profile."
     @end
 
-    -- This function should exist in every OpenGL
-    exts_raw <- liftIO $ castPtr `fmap` glGetString gl_EXTENSIONS
-    exts_cptr <- liftIO $ peekCString exts_raw
-    let exts = parseExtensionString exts_cptr
+    -- In OpenGL 3.3+, glGetString is deprecated and glGetStringi should be used
+    -- for extensions.
+    ver_raw <- liftIO $ castPtr `fmap` glGetString gl_VERSION
+    ver_cptr <- liftIO $ peekCString ver_raw
+    let (minor, major, _, _) = parseVersion ver_cptr
+    exts <- liftIO $ if major >= 4 || major >= 3 && minor >= 3
+            then do
+              exts_num <- alloca $ \num_ptr -> do
+                glGetIntegerv gl_NUM_EXTENSIONS num_ptr
+                fromIntegral <$> peek num_ptr
+              forM [0..exts_num-1] $ \i -> do
+                ext_raw <- castPtr `fmap` glGetStringi gl_EXTENSIONS i
+                peekCString ext_raw
+            else do
+              exts_raw <- castPtr `fmap` glGetString gl_EXTENSIONS
+              exts_cptr <- peekCString exts_raw
+              return $ parseExtensionString exts_cptr
 
     @for extension,required in extensions:
     when True $ do
