@@ -179,7 +179,7 @@ flextInit get_proc_address = fmap proc $ runExceptT $ do
     -- for extensions.
     ver_raw <- liftIO $ castPtr `fmap` glGetString gl_VERSION
     ver_cptr <- liftIO $ peekCString ver_raw
-    let (minor, major, _, _) = parseVersion ver_cptr
+    let (major, minor, _, _) = parseVersion ver_cptr
     exts <- liftIO $ if major >= 4 || major >= 3 && minor >= 3
             then do
               exts_num <- alloca $ \num_ptr -> do
