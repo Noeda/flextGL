@@ -135,9 +135,10 @@ parseVersion str =
       rev = case rest2 of
         [] -> Nothing
         ('.':t) -> Just $ read t
+        _ -> error "Invalid version string"
   in (read major, read minor, rev, drop 1 vendor)
 
-  where split c [] = ([], [])
+  where split _ [] = ([], [])
         split c (h:t)
           | h == c = ([], h:t)
           | otherwise = let (left, right) = split c t
