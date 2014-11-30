@@ -205,8 +205,8 @@ flextInit get_proc_address = fmap proc $ runExceptT $ do
     return Success
 
 @for extension,required in extensions:
-has_GL_@extension :: IO Bool
-has_GL_@extension = readIORef hasref_GL_@extension
+has_GL_@extension :: MonadIO m => m Bool
+has_GL_@extension = liftIO $ readIORef hasref_GL_@extension
 {-# INLINE has_GL_@extension #-}
 hasref_GL_@extension :: IORef Bool
 @if required:
@@ -232,8 +232,19 @@ foreign import ccall APIENTRY unsafe "dynamic"
 glref@f.name :: IORef Funtype@f.name
 glref@f.name = unsafePerformIO $ newIORef $ error "No function retrieved."
 {-# NOINLINE glref@f.name #-}
-gl@f.name :: Funtype@f.name
-gl@f.name = unsafePerformIO $ readIORef glref@f.name
+gl@f.name :: MonadIO m =>
+@for t,p in f.params:
+    @haskellize(p) ->
+@end
+    m ( @haskellize(f.returntype) )
+gl@f.name
+@for i in range(len(f.params)):
+    a@str(i)
+@end
+    = liftIO $ (unsafePerformIO $ readIORef glref@f.name)
+@for i in range(len(f.params)):
+      a@str(i)
+@end
 {-# INLINE gl@f.name #-}
 @end
 @end
