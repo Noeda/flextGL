@@ -144,9 +144,6 @@ parseVersion str =
           | otherwise = let (left, right) = split c t
                         in (h:left, right)
 
-parseExtensionString :: String -> [String]
-parseExtensionString = words
-
 -- | Initializes OpenGL entry points in the current OpenGL context.
 flextInit :: (String -> IO (Ptr ()))
           -> IO FlextInitResult
@@ -192,7 +189,7 @@ flextInit get_proc_address = fmap proc $ runExceptT $ do
             else do
               exts_raw <- castPtr `fmap` glGetString gl_EXTENSIONS
               exts_cptr <- peekCString exts_raw
-              return $ parseExtensionString exts_cptr
+              return $ words exts_cptr
 
     @for extension,required in extensions:
     when True $ do
