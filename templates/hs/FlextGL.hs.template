@@ -135,16 +135,14 @@ parseVersion str =
       rev = case rest2 of
         [] -> Nothing
         ('.':t) -> Just $ read t
+        _ -> error "Invalid version string"
   in (read major, read minor, rev, drop 1 vendor)
 
-  where split c [] = ([], [])
+  where split _ [] = ([], [])
         split c (h:t)
           | h == c = ([], h:t)
           | otherwise = let (left, right) = split c t
                         in (h:left, right)
-
-parseExtensionString :: String -> [String]
-parseExtensionString = words
 
 -- | Initializes OpenGL entry points in the current OpenGL context.
 flextInit :: (String -> IO (Ptr ()))
@@ -191,7 +189,7 @@ flextInit get_proc_address = fmap proc $ runExceptT $ do
             else do
               exts_raw <- castPtr `fmap` glGetString gl_EXTENSIONS
               exts_cptr <- peekCString exts_raw
-              return $ parseExtensionString exts_cptr
+              return $ words exts_cptr
 
     @for extension,required in extensions:
     when True $ do
@@ -207,8 +205,8 @@ flextInit get_proc_address = fmap proc $ runExceptT $ do
     return Success
 
 @for extension,required in extensions:
-has_GL_@extension :: IO Bool
-has_GL_@extension = readIORef hasref_GL_@extension
+has_GL_@extension :: MonadIO m => m Bool
+has_GL_@extension = liftIO $ readIORef hasref_GL_@extension
 {-# INLINE has_GL_@extension #-}
 hasref_GL_@extension :: IORef Bool
 @if required:
@@ -234,8 +232,19 @@ foreign import ccall APIENTRY unsafe "dynamic"
 glref@f.name :: IORef Funtype@f.name
 glref@f.name = unsafePerformIO $ newIORef $ error "No function retrieved."
 {-# NOINLINE glref@f.name #-}
-gl@f.name :: Funtype@f.name
-gl@f.name = unsafePerformIO $ readIORef glref@f.name
+gl@f.name :: MonadIO m =>
+@for t,p in f.params:
+    @haskellize(p) ->
+@end
+    m ( @haskellize(f.returntype) )
+gl@f.name
+@for i in range(len(f.params)):
+    a@str(i)
+@end
+    = liftIO $ (unsafePerformIO $ readIORef glref@f.name)
+@for i in range(len(f.params)):
+      a@str(i)
+@end
 {-# INLINE gl@f.name #-}
 @end
 @end
