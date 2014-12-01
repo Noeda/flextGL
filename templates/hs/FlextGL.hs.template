@@ -36,6 +36,7 @@
 
 module FlextGL
     ( flextInit
+    , getGLVersion
     , FlextInitResult(..)
 @for extension,required in extensions:
     , has_GL_@extension
@@ -127,22 +128,18 @@ proc :: Either a a -> a
 proc (Left x) = x
 proc (Right x) = x
 
-parseVersion :: String -> (Int, Int, Maybe Int, String)
-parseVersion str =
-  let (ver, vendor) = split ' ' str
-      (major, _:rest1) = split '.' ver
-      (minor, rest2) = split '.' rest1
-      rev = case rest2 of
-        [] -> Nothing
-        ('.':t) -> Just $ read t
-        _ -> error "Invalid version string"
-  in (read major, read minor, rev, drop 1 vendor)
-
-  where split _ [] = ([], [])
-        split c (h:t)
-          | h == c = ([], h:t)
-          | otherwise = let (left, right) = split c t
-                        in (h:left, right)
+getGLVersion :: MonadIO m => m (Int, Int)
+getGLVersion =
+    liftIO $ alloca $ \major_ptr -> alloca $ \minor_ptr -> do
+        -- in case glGetIntegerv is completely broken, set initial values for
+        -- major and minor pointers
+        poke major_ptr 0
+        poke minor_ptr 0
+        glGetIntegerv gl_MAJOR_VERSION major_ptr
+        glGetIntegerv gl_MINOR_VERSION minor_ptr
+        major <- fromIntegral <$> peek major_ptr
+        minor <- fromIntegral <$> peek minor_ptr
+        return (major, minor)
 
 -- | Initializes OpenGL entry points in the current OpenGL context.
 flextInit :: (String -> IO (Ptr ()))
@@ -175,9 +172,7 @@ flextInit get_proc_address = fmap proc $ runExceptT $ do
 
     -- In OpenGL 3.3+, glGetString is deprecated and glGetStringi should be used
     -- for extensions.
-    ver_raw <- liftIO $ castPtr `fmap` glGetString gl_VERSION
-    ver_cptr <- liftIO $ peekCString ver_raw
-    let (major, minor, _, _) = parseVersion ver_cptr
+    (major, minor) <- getGLVersion
     exts <- liftIO $ if major >= 4 || major >= 3 && minor >= 3
             then do
               exts_num <- alloca $ \num_ptr -> do
