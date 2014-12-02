@@ -149,9 +149,7 @@ getGLVersion =
 flextInit :: (String -> IO (Ptr ()))
           -> IO FlextInitResult
 flextInit get_proc_address = fmap proc $ runExceptT $ do
-    @for category,funcs in functions:
-    -- GL_@category
-
+    @for cat,funcs in functions:
     @for f in funcs:
     when True $ liftIO $ do
         addr' <- castPtrToFunPtr . castPtr <$> get_proc_address "gl@f.name"

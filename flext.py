@@ -369,12 +369,11 @@ def parse_xml(version, extensions):
 def generate_source(options, version, enums, functions_by_category, passthru, extensions, types, raw_enums):
     template_pattern = re.compile("(.*).template")
 
-    # Sort categories
+    # Sort by categories and sort the functions inside the categories
     functions_by_category = sorted(functions_by_category
                                   ,key=lambda x: x[0])
-    # Sort functions inside the categories
-    functions_by_category = map(lambda c: (c[0], sorted(c[1], key=lambda x: x.name))
-                               ,functions_by_category)
+    functions_by_category = list(map(lambda c: (c[0], sorted(c[1], key=lambda x: x.name))
+                                ,functions_by_category))
 
     template_namespace = {'passthru'  : passthru,
                           'functions' : functions_by_category,
