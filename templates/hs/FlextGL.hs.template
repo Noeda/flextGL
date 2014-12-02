@@ -20,6 +20,10 @@
 )
 
 @(
+    sorted_raw_enums = sorted(raw_enums)
+)
+
+@(
    def processenum(enum):
     if enum.endswith("ull"): return enum[:-3]
     if enum.endswith("u"): return enum[:-1]
@@ -46,7 +50,7 @@ module FlextGL
     , gl@f.name
 @end
 @end
-@for e in raw_enums:
+@for e in sorted_raw_enums:
     , @lowercasifygl(e)
 @end
     , GLsync
@@ -244,7 +248,7 @@ gl@f.name
 @end
 @end
 
-@for e in raw_enums:
+@for e in sorted_raw_enums:
 @lowercasifygl(e) :: GLenum
 @lowercasifygl(e) = @processenum(raw_enums[e])
 @end
