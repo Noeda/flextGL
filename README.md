@@ -130,7 +130,10 @@ At the moment, there are three template sets available:
 * `'glfw3-es'`
   > Used for generating OpenGL ES loading code.
 
-  
+* `'haskell'`
+  > Generates a Haskell file that can be imported to access OpenGL. The module
+  > will be called `FlextGL`.
+
 Installing Wheezy Template on Windows
 -------------------------------------
 
