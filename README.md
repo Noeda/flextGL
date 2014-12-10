@@ -130,7 +130,7 @@ At the moment, there are three template sets available:
 * `'glfw3-es'`
   > Used for generating OpenGL ES loading code.
 
-* `'haskell'`
+* `'hs'`
   > Generates a Haskell file that can be imported to access OpenGL. The module
   > will be called `FlextGL`.
 
